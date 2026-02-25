@@ -9,11 +9,10 @@ import androidx.annotation.Nullable;
 import com.example.mywifiapplication.Constants;
 import com.example.mywifiapplication.bean.FileBean;
 
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -25,7 +24,7 @@ public class SendFileService extends IntentService {
     private static final int SOCKET_TIMEOUT = 3000;
     private Socket socket;
     private OutputStream outputStream;
-    private ObjectOutputStream objectOutputStream;
+    private DataOutputStream dataOutputStream;
     private FileInputStream fileInputStream;
 
 
@@ -63,8 +62,11 @@ public class SendFileService extends IntentService {
             socket.bind(null);
             socket.connect((new InetSocketAddress(host, port)), SOCKET_TIMEOUT);
             outputStream = socket.getOutputStream();
-            objectOutputStream = new ObjectOutputStream(outputStream);
-            objectOutputStream.writeObject(fileBean);//对象输出
+            dataOutputStream = new DataOutputStream(outputStream);
+            dataOutputStream.writeUTF(fileBean.getName());
+            dataOutputStream.writeUTF(fileBean.getPath());
+            dataOutputStream.writeLong(fileBean.getLength());
+            dataOutputStream.flush();
             fileInputStream = new FileInputStream(file);
 
             long size = file.length();
@@ -72,25 +74,23 @@ public class SendFileService extends IntentService {
             byte[] bytes = new byte[1024];
             int length;
             while ((length = fileInputStream.read(bytes)) != -1) {
-                outputStream.write(bytes, 0, length);//传输文件
+                dataOutputStream.write(bytes, 0, length);
                 total += length;
                 Log.e(TAG, "onHandleIntent: 文件发送进度" + (total * 100) / size);
             }
-            if (outputStream != null) {
-                outputStream.close();
-            }
-            if (objectOutputStream != null) {
-                objectOutputStream.close();
-            }
+            dataOutputStream.flush();
             if (fileInputStream != null) {
                 fileInputStream.close();
+            }
+            if (dataOutputStream != null) {
+                dataOutputStream.close();
             }
             if (socket != null) {
                 socket.close();
             }
         } catch (IOException e) {
             Log.e(TAG, "onHandleIntent: 出现了错误");
-            sendFileSocket(host, port, file, fileBean);//此处是否要这样去重连未知，有时候找不到路由器主机，重新进入该页面就好了，但是我怀疑问题还是重连的问题
+            sendFileSocket(host, port, file, fileBean);
         } finally {
             if (socket != null) {
                 if (socket.isConnected()) {
@@ -108,14 +108,11 @@ public class SendFileService extends IntentService {
     public void onDestroy() {
         super.onDestroy();
         try {
-            if (outputStream != null) {
-                outputStream.close();
-            }
-            if (objectOutputStream != null) {
-                objectOutputStream.close();
-            }
             if (fileInputStream != null) {
                 fileInputStream.close();
+            }
+            if (dataOutputStream != null) {
+                dataOutputStream.close();
             }
             if (socket != null) {
                 socket.close();

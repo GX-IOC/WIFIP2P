@@ -4,12 +4,11 @@ import android.os.AsyncTask;
 import android.os.Environment;
 import android.util.Log;
 import com.example.mywifiapplication.Constants;
-import com.example.mywifiapplication.bean.FileBean;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -24,9 +23,11 @@ public class ReceiverFileAsyncTask extends AsyncTask<Void, Void, String> {
 
             try {
                 InputStream inputStream = socket.getInputStream();
-                ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
-                FileBean fileBean = (FileBean) objectInputStream.readObject();
-                String fileName = new File(fileBean.getPath()).getName();
+                DataInputStream dataInputStream = new DataInputStream(inputStream);
+                String name = dataInputStream.readUTF();
+                String path = dataInputStream.readUTF();
+                long fileLength = dataInputStream.readLong();
+                String fileName = new File(path).getName();
 
                 File file = new File(Environment.getExternalStorageDirectory() + "/Download/" + fileName);
                 FileOutputStream fileOutputStream = new FileOutputStream(file);
@@ -34,14 +35,13 @@ public class ReceiverFileAsyncTask extends AsyncTask<Void, Void, String> {
                 byte[] bytes = new byte[1024];
                 long total = 0;
                 int length;
-                while ((length = inputStream.read(bytes)) != -1) {
+                while ((length = dataInputStream.read(bytes)) != -1) {
                     fileOutputStream.write(bytes, 0, length);
                     total += length;
-                    Log.e(TAG, "doInBackground: 文件接收进度:  " + (total * 100) / fileBean.getLength());
+                    Log.e(TAG, "doInBackground: 文件接收进度:  " + (total * 100) / fileLength);
                 }
 
-                inputStream.close();
-                objectInputStream.close();
+                dataInputStream.close();
                 fileOutputStream.close();
                 serverSocket.close();
                 return file.getAbsolutePath();
